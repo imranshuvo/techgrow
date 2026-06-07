@@ -1,0 +1,17 @@
+.git
+.gitignore
+.claude
+
+# Never bake the database (or local test data) into the image —
+# it lives on a persistent volume at runtime.
+storage/*.sqlite
+storage/*.sqlite-wal
+storage/*.sqlite-shm
+storage/*.db
+
+# Noise
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
