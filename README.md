@@ -1,0 +1,219 @@
+# TechGrow Ltd — Early-Access Landing Page
+
+A simple, fast, production-friendly landing page that collects interested
+leads before the full TechGrow Ltd website and SaaS products launch.
+
+Built with **plain PHP** (no framework), **Tailwind CSS** (CDN), and a local
+**SQLite** database. No Composer dependencies required.
+
+---
+
+## Features
+
+- Clean, modern, mobile-first landing page (white/light, premium typography)
+- Hero, About, "What we're building", email collector, and footer sections
+- Lead capture form with:
+  - Server-side **validation** and **sanitisation**
+  - **CSRF protection** (per-session token, constant-time check)
+  - **Honeypot** field for spam bots
+  - **SQLite** storage via **prepared statements**
+  - **Duplicate email** prevention (case-insensitive)
+  - **Timestamp**, **IP address**, and user-agent recorded per signup
+  - Clear success / info / error messages (POST → Redirect → GET, so refresh
+    never re-submits)
+- Database lives **outside the public web root** and is never web-served
+
+---
+
+## Project structure
+
+```
+techgrow.ltd/
+├── public/                 ← web root (point your server's docroot here)
+│   ├── index.php           ← landing page + form handling (controller)
+│   └── .htaccess           ← directory index, no listings, security headers
+├── src/
+│   ├── database.php        ← PDO/SQLite connection + schema (auto-created)
+│   ├── functions.php       ← session, CSRF, sanitisation, validation helpers
+│   └── .htaccess           ← deny web access (shared-hosting safety net)
+├── storage/
+│   ├── subscribers.sqlite  ← created automatically on first run (git-ignored)
+│   └── .htaccess           ← deny web access (shared-hosting safety net)
+├── .gitignore
+└── README.md
+```
+
+Keeping `index.php` in `public/` means `src/` and `storage/` are not reachable
+over HTTP when the document root is set correctly. The `.htaccess` files are an
+extra safety net for shared hosts where everything lives under one folder.
+
+---
+
+## Requirements
+
+- PHP **8.1+** (tested on PHP 8.5)
+- PHP extensions: `pdo`, `pdo_sqlite` (both standard / usually bundled)
+- A web server (or PHP's built-in server for local development)
+
+Check your setup:
+
+```bash
+php -v
+php -m | grep -i pdo_sqlite
+```
+
+---
+
+## Quick start (local development)
+
+From the project root, serve the `public/` folder:
+
+```bash
+php -S localhost:8000 -t public
+```
+
+Then open <http://localhost:8000>.
+
+On the first form submission the app will:
+
+1. create the `storage/` directory if needed,
+2. create `storage/subscribers.sqlite`, and
+3. create the `subscribers` table and indexes.
+
+No manual database setup is required.
+
+---
+
+## Viewing collected leads
+
+The database is a standard SQLite file. With the `sqlite3` CLI:
+
+```bash
+sqlite3 storage/subscribers.sqlite
+
+sqlite> .headers on
+sqlite> .mode column
+sqlite> SELECT id, name, email, created_at FROM subscribers ORDER BY id DESC;
+sqlite> .quit
+```
+
+Export to CSV:
+
+```bash
+sqlite3 -header -csv storage/subscribers.sqlite \
+  "SELECT name, email, message, created_at FROM subscribers;" > leads.csv
+```
+
+### Database schema
+
+| Column        | Type    | Notes                                       |
+|---------------|---------|---------------------------------------------|
+| `id`          | INTEGER | Primary key, auto-increment                 |
+| `name`        | TEXT    | Required                                    |
+| `email`       | TEXT    | Required, **unique** (case-insensitive)     |
+| `message`     | TEXT    | Optional                                    |
+| `ip_address`  | TEXT    | Captured at signup                          |
+| `user_agent`  | TEXT    | Captured at signup                          |
+| `created_at`  | TEXT    | UTC timestamp, defaults to `datetime('now')`|
+
+---
+
+## Deployment
+
+### Option A — Server you control (recommended)
+
+Point the **document root** at the `public/` directory. The rest of the project
+stays above the web root and is never served.
+
+**Apache** (virtual host):
+
+```apache
+<VirtualHost *:80>
+    ServerName techgrow.ltd
+    DocumentRoot /var/www/techgrow.ltd/public
+
+    <Directory /var/www/techgrow.ltd/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+**Nginx** + PHP-FPM:
+
+```nginx
+server {
+    listen 80;
+    server_name techgrow.ltd;
+    root /var/www/techgrow.ltd/public;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    # Defence in depth: never serve the storage/source folders.
+    location ~ ^/(storage|src)/ { deny all; return 404; }
+}
+```
+
+Make sure the web-server user can write to `storage/`:
+
+```bash
+chown -R www-data:www-data storage
+chmod 775 storage
+```
+
+### Option B — Basic / shared hosting (single public folder)
+
+Some shared hosts force the web root to be `public_html/` (or similar) and
+won't let you change it. In that case:
+
+1. Upload the contents of **`public/`** into `public_html/`.
+2. Upload the **`src/`** and **`storage/`** folders *above* `public_html/`
+   (i.e. into the account's home directory, next to `public_html/`), and update
+   the two `require` paths at the top of `index.php` accordingly — e.g.
+   `require __DIR__ . '/../src/functions.php';`
+3. If you cannot place folders above the web root, upload `src/` and `storage/`
+   inside `public_html/` — the bundled `.htaccess` files in those folders deny
+   direct web access on Apache as a fallback.
+
+Ensure `storage/` is writable by PHP (often `755` or `775`, set via your host's
+file manager or `chmod`).
+
+---
+
+## Security notes
+
+- **Database is not web-exposed.** It sits in `storage/` (outside `public/`),
+  is git-ignored, and `.htaccess` denies direct access as a backup.
+- **Prepared statements** everywhere — no string-built SQL.
+- **CSRF token** per session, validated with `hash_equals` (constant-time).
+- **Honeypot** field silently drops obvious bots.
+- **Input is sanitised** (control chars + tags stripped, length-capped) and
+  **validated** (email format, required fields) on the server.
+- **Output is escaped** with `htmlspecialchars` to prevent XSS.
+- **Errors are logged**, never shown to visitors.
+- For production, serve over **HTTPS** so the session cookie's `Secure` flag and
+  `SameSite=Lax` give full protection.
+
+---
+
+## Going to production (optional next steps)
+
+- Self-host Tailwind (build a minified CSS file) instead of the CDN for best
+  performance and offline reliability — the CDN is intended for the first
+  version only.
+- Add a double opt-in / confirmation email before adding contacts to a list.
+- Add a simple admin view or scheduled CSV export of `subscribers`.
+- Add rate limiting (per IP) if the form attracts abuse.
+
+---
+
+© TechGrow Ltd. Contact: **hello@techgrow.ltd**

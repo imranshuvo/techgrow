@@ -1,0 +1,14 @@
+# Public web root for TechGrow Ltd.
+
+# Default document
+DirectoryIndex index.php
+
+# Don't expose directory listings
+Options -Indexes
+
+# Security headers (mirrors the PHP-level headers as a fallback)
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
