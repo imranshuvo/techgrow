@@ -479,8 +479,8 @@ function icon(string $name): string
                     <span class="font-bold tracking-tight text-slate-900">TechGrow Ltd</span>
                 </div>
 
-                <a href="mailto:hello@techgrow.ltd" class="text-sm font-medium text-slate-600 transition hover:text-emerald-600">
-                    hello@techgrow.ltd
+                <a href="mailto:info@techgrow.ltd" class="text-sm font-medium text-slate-600 transition hover:text-emerald-600">
+                    info@techgrow.ltd
                 </a>
             </div>
 

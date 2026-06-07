@@ -216,4 +216,4 @@ file manager or `chmod`).
 
 ---
 
-© TechGrow Ltd. Contact: **hello@techgrow.ltd**
+© TechGrow Ltd. Contact: **info@techgrow.ltd**
