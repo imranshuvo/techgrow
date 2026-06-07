@@ -1,0 +1,36 @@
+# Docker Compose for TechGrow Ltd.
+#
+# Works on Coolify (Docker Compose build pack) and on any Docker host.
+#   - Builds the image from ./Dockerfile (Apache document root = public/)
+#   - Persists the SQLite database on the named volume "techgrow-storage"
+#     so collected leads survive redeploys, restarts, and rebuilds.
+#
+# Coolify : set your domain in the UI (it fills SERVICE_FQDN_WEB_80 below);
+#           Coolify's proxy terminates HTTPS and routes to container port 80.
+# Local   : `docker compose up --build`  ->  http://localhost:8080
+#           (the host port is supplied by docker-compose.override.yml)
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Coolify replaces this with your chosen domain and wires up TLS + proxy.
+      # On a plain Docker host it is simply unset (harmless).
+      - SERVICE_FQDN_WEB_80
+    expose:
+      - "80"
+    volumes:
+      # Named volume → the SQLite file lives outside the container layer.
+      - techgrow-storage:/var/www/html/storage
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1/') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  techgrow-storage:

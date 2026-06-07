@@ -187,6 +187,44 @@ won't let you change it. In that case:
 Ensure `storage/` is writable by PHP (often `755` or `775`, set via your host's
 file manager or `chmod`).
 
+### Option C — Docker / Docker Compose (incl. Coolify)
+
+The repo ships a `Dockerfile` (php:8.3-apache, document root set to `public/`)
+and a `docker-compose.yml`. The SQLite database is kept on a named volume
+(`techgrow-storage`) so collected leads **survive redeploys and rebuilds**.
+
+**Local:**
+
+```bash
+docker compose up --build       # -> http://localhost:8080
+```
+
+`docker-compose.override.yml` publishes the host port for local use only.
+
+**Coolify:**
+
+1. **DNS** — point an `A` record for your domain at the Coolify server IP.
+2. **New Resource** → connect the Git repo → branch `main` →
+   **Build Pack: Docker Compose** (uses `docker-compose.yml`).
+3. **Domain** — set your FQDN on the `web` service. Coolify provisions
+   HTTPS (Let's Encrypt) and routes through its proxy to container port 80.
+4. **Storage** — the named `techgrow-storage` volume persists automatically;
+   no extra config needed. (This is what keeps your leads across deploys.)
+5. **Deploy.**
+
+> Without the persistent volume, every redeploy starts with a fresh, empty
+> database. The compose file handles this for you — don't remove the volume.
+
+**Back up the SQLite file** (named volumes aren't covered by Coolify's
+managed-database backups):
+
+```bash
+docker compose exec web \
+  sqlite3 storage/subscribers.sqlite ".backup storage/backup.sqlite"
+# or copy it off the host:
+docker cp <container>:/var/www/html/storage/subscribers.sqlite ./backup.sqlite
+```
+
 ---
 
 ## Security notes

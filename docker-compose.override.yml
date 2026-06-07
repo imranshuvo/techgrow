@@ -1,0 +1,13 @@
+# Local development overrides.
+#
+# `docker compose up` auto-merges this file, so the site is reachable at
+# http://localhost:8080 on your machine.
+#
+# Coolify deploys docker-compose.yml explicitly (with -f), so it does NOT
+# merge this override — no host port is published in production, and all
+# traffic goes through Coolify's proxy instead.
+
+services:
+  web:
+    ports:
+      - "8080:80"
