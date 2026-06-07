@@ -1,3 +1,6 @@
+# Environment / secrets (never commit the admin password hash)
+.env
+
 # SQLite database files (never commit collected leads / personal data)
 storage/*.sqlite
 storage/*.sqlite-wal

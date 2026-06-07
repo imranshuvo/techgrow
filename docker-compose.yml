@@ -20,6 +20,13 @@ services:
       # Coolify replaces this with your chosen domain and wires up TLS + proxy.
       # On a plain Docker host it is simply unset (harmless).
       - SERVICE_FQDN_WEB_80
+      # App config — set these in the Coolify UI (or a local .env). The admin
+      # dashboard stays disabled until ADMIN_PASSWORD_HASH is provided.
+      - APP_ENV=${APP_ENV:-production}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
+      - ADMIN_SESSION_IDLE=${ADMIN_SESSION_IDLE:-7200}
+      - ADMIN_PAGE_SIZE=${ADMIN_PAGE_SIZE:-25}
     expose:
       - "80"
     volumes:

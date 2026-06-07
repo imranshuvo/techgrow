@@ -136,3 +136,97 @@ function add_subscriber(
 
     return true;
 }
+
+/* ----------------------------------------------------------------------
+ | Admin / reporting queries
+ * ------------------------------------------------------------------- */
+
+/**
+ * Escape LIKE wildcards so a search term is matched literally.
+ * Used with `ESCAPE '\'` in the queries below.
+ */
+function escape_like(string $term): string
+{
+    return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+}
+
+/**
+ * Count subscribers, optionally filtered by a name/email search term.
+ */
+function count_subscribers(PDO $pdo, string $search = ''): int
+{
+    if ($search === '') {
+        return (int) $pdo->query('SELECT COUNT(*) FROM subscribers')->fetchColumn();
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM subscribers
+         WHERE name LIKE :q ESCAPE '\\' OR email LIKE :q ESCAPE '\\'"
+    );
+    $stmt->bindValue(':q', '%' . escape_like($search) . '%');
+    $stmt->execute();
+
+    return (int) $stmt->fetchColumn();
+}
+
+/**
+ * Count subscribers created within the last N days (UTC).
+ */
+function count_subscribers_last_days(PDO $pdo, int $days): int
+{
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM subscribers WHERE created_at >= datetime('now', :modifier)"
+    );
+    $stmt->execute([':modifier' => '-' . max(0, $days) . ' days']);
+
+    return (int) $stmt->fetchColumn();
+}
+
+/**
+ * Count subscribers created today (UTC).
+ */
+function count_subscribers_today(PDO $pdo): int
+{
+    return (int) $pdo->query(
+        "SELECT COUNT(*) FROM subscribers WHERE created_at >= date('now')"
+    )->fetchColumn();
+}
+
+/**
+ * Fetch a page of subscribers (newest first), optionally filtered.
+ */
+function get_subscribers(PDO $pdo, string $search, int $limit, int $offset): array
+{
+    $limit  = max(1, $limit);
+    $offset = max(0, $offset);
+
+    if ($search === '') {
+        $stmt = $pdo->prepare(
+            'SELECT * FROM subscribers ORDER BY id DESC LIMIT :limit OFFSET :offset'
+        );
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT * FROM subscribers
+             WHERE name LIKE :q ESCAPE '\\' OR email LIKE :q ESCAPE '\\'
+             ORDER BY id DESC LIMIT :limit OFFSET :offset"
+        );
+        $stmt->bindValue(':q', '%' . escape_like($search) . '%');
+    }
+
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    return $stmt->fetchAll();
+}
+
+/**
+ * Delete a subscriber by id. Returns true if a row was removed.
+ */
+function delete_subscriber(PDO $pdo, int $id): bool
+{
+    $stmt = $pdo->prepare('DELETE FROM subscribers WHERE id = :id');
+    $stmt->execute([':id' => $id]);
+
+    return $stmt->rowCount() > 0;
+}

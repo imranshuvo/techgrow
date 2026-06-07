@@ -2,6 +2,9 @@
 .gitignore
 .claude
 
+# Secrets — provided at runtime via Coolify/host env, never baked in.
+.env
+
 # Never bake the database (or local test data) into the image —
 # it lives on a persistent volume at runtime.
 storage/*.sqlite

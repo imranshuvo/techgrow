@@ -9,6 +9,7 @@ declare(strict_types=1);
  * then redirect (POST/Redirect/GET) so a refresh never re-submits.
  */
 
+require __DIR__ . '/../src/config.php';
 require __DIR__ . '/../src/functions.php';
 require __DIR__ . '/../src/database.php';
 
@@ -78,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name,
             (string) $email,
             $message,
-            client_ip(),
+            client_ip(config('trust_proxy')),
             sanitize_text($_SERVER['HTTP_USER_AGENT'] ?? '', 255)
         );
 

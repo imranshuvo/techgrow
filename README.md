@@ -21,7 +21,10 @@ Built with **plain PHP** (no framework), **Tailwind CSS** (CDN), and a local
   - **Timestamp**, **IP address**, and user-agent recorded per signup
   - Clear success / info / error messages (POST → Redirect → GET, so refresh
     never re-submits)
+- **Admin dashboard** (`/admin.php`): password-protected list of subscribers
+  with signup stats, search, pagination, CSV export, and delete (GDPR)
 - Database lives **outside the public web root** and is never web-served
+- **Environment-based config** (`.env` locally, real env vars on Coolify/server)
 
 ---
 
@@ -31,14 +34,22 @@ Built with **plain PHP** (no framework), **Tailwind CSS** (CDN), and a local
 techgrow.ltd/
 ├── public/                 ← web root (point your server's docroot here)
 │   ├── index.php           ← landing page + form handling (controller)
+│   ├── admin.php           ← password-protected admin dashboard
 │   └── .htaccess           ← directory index, no listings, security headers
 ├── src/
-│   ├── database.php        ← PDO/SQLite connection + schema (auto-created)
+│   ├── config.php          ← env loader + typed settings
+│   ├── database.php        ← PDO/SQLite connection, schema, queries (auto-created)
 │   ├── functions.php       ← session, CSRF, sanitisation, validation helpers
+│   ├── admin.php           ← admin auth (login, lockout, session)
 │   └── .htaccess           ← deny web access (shared-hosting safety net)
 ├── storage/
 │   ├── subscribers.sqlite  ← created automatically on first run (git-ignored)
 │   └── .htaccess           ← deny web access (shared-hosting safety net)
+├── bin/
+│   └── hash-password.php   ← generate the admin password hash
+├── .env.example            ← config template (copy to .env for local dev)
+├── Dockerfile              ← php:8.3-apache, docroot = public/
+├── docker-compose.yml      ← build + persistent SQLite volume (Coolify-ready)
 ├── .gitignore
 └── README.md
 ```
@@ -81,6 +92,54 @@ On the first form submission the app will:
 3. create the `subscribers` table and indexes.
 
 No manual database setup is required.
+
+---
+
+## Configuration
+
+Settings come from environment variables. For local development, copy the
+template and edit it — real environment variables (e.g. set in Coolify) always
+take precedence over the `.env` file.
+
+```bash
+cp .env.example .env
+```
+
+| Variable              | Default      | Purpose                                                        |
+|-----------------------|--------------|----------------------------------------------------------------|
+| `APP_ENV`             | `production` | `production` hides errors; `local` shows them.                 |
+| `ADMIN_PASSWORD_HASH` | _(empty)_    | Bcrypt hash enabling the admin dashboard. Empty = disabled.    |
+| `TRUST_PROXY`         | `false`      | Set `true` behind a proxy (Coolify/Nginx/Cloudflare) for real client IPs. |
+| `ADMIN_SESSION_IDLE`  | `7200`       | Admin auto-logout after N seconds idle.                        |
+| `ADMIN_PAGE_SIZE`     | `25`         | Subscriber rows per page in the dashboard (min 5).             |
+
+The `.env` file is git-ignored and never baked into the Docker image.
+
+---
+
+## Admin dashboard
+
+A password-protected dashboard lives at **`/admin.php`** (e.g.
+`https://techgrow.ltd/admin.php`). It reads the same SQLite database and
+provides signup stats, search, pagination, CSV export, and per-row delete.
+
+**1. Generate a password hash** (never store the plain password):
+
+```bash
+php bin/hash-password.php
+# → prints:  ADMIN_PASSWORD_HASH=$2y$12$...
+```
+
+**2. Set it in your environment:**
+
+- *Local:* paste the line into `.env`.
+- *Coolify / server:* add `ADMIN_PASSWORD_HASH` as an environment variable.
+
+**3. Visit `/admin.php`** and log in. Until a hash is set, the dashboard shows
+a "not configured" notice instead of exposing anything.
+
+Security built in: bcrypt verification, CSRF on every form, session-id rotation
+on login, idle timeout, and a temporary lockout after 5 failed attempts.
 
 ---
 
@@ -237,7 +296,10 @@ docker cp <container>:/var/www/html/storage/subscribers.sqlite ./backup.sqlite
 - **Input is sanitised** (control chars + tags stripped, length-capped) and
   **validated** (email format, required fields) on the server.
 - **Output is escaped** with `htmlspecialchars` to prevent XSS.
-- **Errors are logged**, never shown to visitors.
+- **Errors are logged**, never shown to visitors (`APP_ENV=production`).
+- **Admin auth:** bcrypt password (hash only, via env var), CSRF on every form,
+  session-id rotation on login, idle timeout, and lockout after 5 failed tries.
+  The `/admin.php` page is `noindex` and stays disabled until a hash is set.
 - For production, serve over **HTTPS** so the session cookie's `Secure` flag and
   `SameSite=Lax` give full protection.
 
@@ -249,7 +311,7 @@ docker cp <container>:/var/www/html/storage/subscribers.sqlite ./backup.sqlite
   performance and offline reliability — the CDN is intended for the first
   version only.
 - Add a double opt-in / confirmation email before adding contacts to a list.
-- Add a simple admin view or scheduled CSV export of `subscribers`.
+- Pipe new signups to an email tool (Mailchimp/Brevo) when you start sending.
 - Add rate limiting (per IP) if the form attracts abuse.
 
 ---
